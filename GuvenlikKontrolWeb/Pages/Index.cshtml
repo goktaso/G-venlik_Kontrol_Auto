@@ -214,16 +214,15 @@
         const serverBas = "@Model.SonBasTarih";
         const serverBit = "@Model.SonBitTarih";
 
-        if (serverBas && serverBit) {
-            const localBas = localStorage.getItem("baslangic");
-            const localBit = localStorage.getItem("bitis");
-            if (serverBas !== localBas || serverBit !== localBit) {
-                // DB'de farklı veri var — cache'i temizle, yeni tarihleri yaz
-                localStorage.setItem("baslangic", serverBas);
-                localStorage.setItem("bitis",     serverBit);
-                sessionStorage.removeItem("turData");
-                sessionStorage.removeItem("performansData");
-            }
+        // SADECE localStorage boşsa (ilk ziyaret) otomatik doldur.
+        // Kullanıcı manuel tarih seçmişse üzerine yazmıyoruz.
+        const localBas = localStorage.getItem("baslangic");
+        const localBit = localStorage.getItem("bitis");
+        if ((!localBas || !localBit) && serverBas && serverBit) {
+            localStorage.setItem("baslangic", serverBas);
+            localStorage.setItem("bitis",     serverBit);
+            sessionStorage.removeItem("turData");
+            sessionStorage.removeItem("performansData");
         }
 
         document.addEventListener("DOMContentLoaded", async () => {
