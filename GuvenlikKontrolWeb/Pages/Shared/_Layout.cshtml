@@ -260,6 +260,7 @@
 
             localStorage.setItem("baslangic", bas);
             localStorage.setItem("bitis", bit);
+            localStorage.setItem("manuelSecim", "true");
             sessionStorage.setItem("baslangic", bas);
             sessionStorage.setItem("bitis", bit);
 
@@ -276,6 +277,7 @@
                 if (d.basTarih && d.bitTarih) {
                     localStorage.setItem("baslangic", d.basTarih);
                     localStorage.setItem("bitis",     d.bitTarih);
+                    localStorage.setItem("manuelSecim", "false");
                     sessionStorage.removeItem("turData");
                     sessionStorage.removeItem("performansData");
                     window.location.href = window.location.pathname;
