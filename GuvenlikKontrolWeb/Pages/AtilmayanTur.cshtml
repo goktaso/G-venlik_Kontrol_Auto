@@ -1,0 +1,220 @@
+@page "/AtilmayanTur"
+@model GuvenlikKontrolWeb.Pages.AtilmayanTurModel
+@{
+    ViewData["Title"] = "Atılmayan Tur Raporu";
+}
+
+<style>
+    .stat-card {
+        border: none;
+        border-radius: 14px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); }
+    .section-title {
+        border-left: 5px solid #e74c3c;
+        padding-left: 15px;
+        margin-bottom: 20px;
+        color: #2c3e50;
+        font-weight: 800;
+    }
+    .table thead th {
+        background-color: #f8f9fc;
+        text-transform: uppercase;
+        font-size: 0.82rem;
+        font-weight: 700;
+        border-bottom: 2px solid #e3e6f0;
+    }
+    .btn-action {
+        background: white;
+        border: 1px solid #d1d3e2;
+        color: #4e73df;
+        font-weight: 600;
+        transition: 0.3s;
+        border-radius: 6px;
+    }
+    .btn-action:hover { background: #f8f9fc; border-color: #4e73df; }
+</style>
+
+<div class="container-fluid animate__animated animate__fadeIn py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="text-danger fw-bold m-0">
+                <i class="bi bi-calendar-x-fill me-2"></i>Atılmayan Tur Raporu
+            </h4>
+            <small id="seciliTarih" class="text-muted fw-bold"></small>
+        </div>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-sm btn-action shadow-sm px-3">
+                <i class="bi bi-printer me-1"></i> Yazdır
+            </button>
+            <button onclick="exportToExcel()" class="btn btn-sm btn-action shadow-sm px-3 text-success">
+                <i class="bi bi-file-earmark-excel me-1"></i> Excel
+            </button>
+            <button class="btn btn-sm btn-primary shadow-sm px-3" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Güncelle
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card border-start border-danger border-5 p-3 h-100">
+                <div class="text-danger small fw-bold text-uppercase">Atılmayan Tur</div>
+                <div class="display-6 fw-bold text-danger" id="statAtilmayan">—</div>
+                <small class="text-muted">Tespit edilen eksik tur sayısı</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card border-start border-primary border-5 p-3 h-100">
+                <div class="text-primary small fw-bold text-uppercase">Dönem</div>
+                <div class="fw-bold fs-6 text-dark mt-1" id="statDonem">—</div>
+                <small class="text-muted">Analiz edilen tarih aralığı</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card border-start border-secondary border-5 p-3 h-100">
+                <div class="text-secondary small fw-bold text-uppercase">Beklenen Tur</div>
+                <div class="display-6 fw-bold text-secondary" id="statBeklenen">—</div>
+                <small class="text-muted">Denetim kuralına göre toplam beklenen</small>
+            </div>
+        </div>
+    </div>
+
+    <h4 class="section-title">Gerçekleşmeyen Tur Detayları</h4>
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height:520px; overflow-y:auto;">
+                <table class="table table-hover align-middle mb-0" id="atilmayanTable">
+                    <thead class="sticky-top">
+                        <tr>
+                            <th class="ps-4">Denetim Tarihi</th>
+                            <th>Hedef Tur Saati</th>
+                            <th>Denetim Kuralı</th>
+                            <th class="text-center">Durum</th>
+                            <th class="text-end pe-4">Açıklama</th>
+                        </tr>
+                    </thead>
+                    <tbody id="atilmayanBody">
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <div class="spinner-border spinner-border-sm text-danger me-2"></div>
+                                Analiz yapılıyor...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener("DOMContentLoaded", atilmayanTurlariGetir);
+
+    async function atilmayanTurlariGetir() {
+        const bas   = localStorage.getItem("baslangic");
+        const bit   = localStorage.getItem("bitis");
+        const tbody = document.getElementById("atilmayanBody");
+
+        if (!bas || !bit) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-warning">Lütfen sol menüden tarih seçip güncelleyiniz.</td></tr>';
+            return;
+        }
+
+        document.getElementById("seciliTarih").innerHTML =
+            `<i class="bi bi-calendar3 me-1"></i> Dönem: ${formatTarih(bas)} — ${formatTarih(bit)}`;
+        document.getElementById("statDonem").innerText =
+            `${formatTarihKisa(bas)} — ${formatTarihKisa(bit)}`;
+
+        try {
+            const res  = await fetch(`/api/TurAnaliz?baslangic=${encodeURIComponent(bas)}&bitis=${encodeURIComponent(bit)}`);
+            const data = await res.json();
+            analizEtVeListele(data, tbody);
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-danger">Veri alınamadı: ${err.message}</td></tr>`;
+        }
+    }
+
+    function analizEtVeListele(data, tbody) {
+        const zamanlar = data
+            .map(x => new Date(x.devriyeZamani || x.DevriyeZamani))
+            .filter(d => !isNaN(d));
+
+        if (zamanlar.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted">Bu dönemde veri bulunamadı.</td></tr>';
+            return;
+        }
+
+        let curr   = new Date(Math.min(...zamanlar));
+        curr.setMinutes(0, 0, 0);
+        const bitis = new Date(Math.max(...zamanlar));
+
+        let atilmayanCount = 0;
+        let beklenenCount  = 0;
+        let satirlar       = "";
+
+        while (curr <= bitis) {
+            const gun  = curr.getDay();
+            const saat = curr.getHours();
+            const denetimGerekli = (gun === 0 || gun === 6) || (saat >= 19 || saat < 7);
+
+            if (denetimGerekli) {
+                beklenenCount++;
+                const alt = new Date(curr.getTime() - 15 * 60000);
+                const ust = new Date(curr.getTime() + 30 * 60000);
+
+                const bulundu = data.find(x => {
+                    const z = new Date(x.devriyeZamani || x.DevriyeZamani);
+                    return z >= alt && z <= ust;
+                });
+
+                if (!bulundu) {
+                    atilmayanCount++;
+                    const kural = (gun === 0 || gun === 6) ? "Hafta Sonu Denetimi" : "Mesai Dışı Denetim";
+                    satirlar += `
+                        <tr>
+                            <td class="ps-4 fw-bold text-dark">${curr.toLocaleDateString('tr-TR')}</td>
+                            <td>
+                                <span class="badge bg-light text-danger border border-danger border-opacity-25 fs-6">
+                                    ${curr.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'})} Turu
+                                </span>
+                            </td>
+                            <td><small class="text-muted">${kural}</small></td>
+                            <td class="text-center"><span class="badge bg-danger px-3">ATILMADI</span></td>
+                            <td class="text-end pe-4 text-muted small">Bu saat diliminde okutma kaydı bulunamadı.</td>
+                        </tr>`;
+                }
+            }
+            curr.setHours(curr.getHours() + 1);
+        }
+
+        document.getElementById("statAtilmayan").innerText = atilmayanCount;
+        document.getElementById("statBeklenen").innerText  = beklenenCount;
+
+        tbody.innerHTML = atilmayanCount === 0
+            ? '<tr><td colspan="5" class="text-center py-5 text-success fw-bold">✅ Tüm turlar başarıyla tamamlanmış!</td></tr>'
+            : satirlar;
+    }
+
+    function exportToExcel() {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.table_to_sheet(document.getElementById("atilmayanTable"));
+        XLSX.utils.book_append_sheet(wb, ws, "Atılmayan Turlar");
+        XLSX.writeFile(wb, `AtilmayanTurlar_${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.xlsx`);
+    }
+
+    function formatTarih(d) {
+        if (!d) return "-";
+        return new Date(d).toLocaleString("tr-TR", {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+    }
+
+    function formatTarihKisa(d) {
+        if (!d) return "-";
+        return new Date(d).toLocaleDateString("tr-TR", {day:'2-digit', month:'2-digit', year:'numeric'});
+    }
+</script>
+}

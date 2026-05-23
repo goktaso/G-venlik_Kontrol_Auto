@@ -1,0 +1,168 @@
+﻿@page "/Account/Login"
+@model GuvenlikKontrolWeb.Pages.Account.LoginModel
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giriş - ARD Sistem Danışmanlık Güvenlik Kontrol Sistemi</title>
+
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #F37335 0%, #FDC830 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 30px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            backdrop-filter: blur(15px);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            text-align: center;
+        }
+
+        /* Logo Alanı Tasarımı */
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .company-logo {
+            max-width: 150px; /* Logo boyutunu buradan ayarlayabilirsin */
+            height: auto;
+            margin-bottom: 10px;
+            /* Logo yoksa bile düzgün dursun diye filtre */
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+        }
+
+        .login-icon {
+            font-size: 3rem;
+            background: linear-gradient(to bottom, #F37335, #FDC830);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .system-title {
+            color: #444;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+
+        .input-group-text {
+            background-color: #fff;
+            border-right: none;
+            color: #F37335;
+            border-radius: 12px 0 0 12px;
+        }
+
+        .form-control {
+            border-left: none;
+            padding: 14px;
+            border-radius: 0 12px 12px 0;
+        }
+
+            .form-control:focus {
+                box-shadow: none;
+                border-color: #F37335;
+            }
+
+        .btn-login {
+            background: linear-gradient(to right, #F37335, #fb923c);
+            border: none;
+            color: white;
+            padding: 15px;
+            border-radius: 15px;
+            font-weight: 800;
+            width: 100%;
+            transition: all 0.4s ease;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-top: 10px;
+        }
+
+            .btn-login:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 10px 25px rgba(243, 115, 53, 0.4);
+            }
+
+        .label-custom {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #555;
+            margin-bottom: 8px;
+            display: block;
+            text-align: left;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card animate__animated animate__zoomIn">
+
+        <div class="logo-container">
+            <img src="/images/ard_logo.png" alt="Şirket Logosu" class="company-logo" onerror="this.style.display='none'">
+
+            @* <div class="login-icon">
+                <i class="bi bi-shield-lock-fill"></i>
+            </div> *@
+        </div>
+
+        <h3 class="system-title">ARD Sistem Danışmanlık Güvenlik Kontrol Yönetim Sistemi</h3>
+
+        <form method="post">
+            <div class="mb-3">
+                <span class="label-custom">KULLANICI ADI</span>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person-circle"></i></span>
+                    <input type="text" name="Username" class="form-control" placeholder="Kullanıcı adınızı girin" required autofocus>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <span class="label-custom">ŞİFRE</span>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                    <input type="password" name="Password" class="form-control" placeholder="••••••••" required>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small animate__animated animate__shakeX">
+                    <i class="bi bi-exclamation-octagon-fill me-2"></i> @Model.ErrorMessage
+                </div>
+            }
+
+            <button type="submit" class="btn btn-login shadow-lg">
+                SİSTEME GİRİŞ YAP <i class="bi bi-chevron-right ms-2"></i>
+            </button>
+        </form>
+
+        <div class="mt-4 text-muted small fw-bold">
+            &copy; 2026 ARD SİSTEM DANIŞMANLIK GÜVENLİK SİSTEMLERİ
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,146 @@
+﻿@page
+@model GuvenlikKontrolWeb.Pages.MukerrerNoktalarModel
+@{
+    ViewData["Title"] = "Mükerrer Nokta Analizi";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Mükerrer Okutma Raporu</h1>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-sm btn-primary shadow-sm">
+                <i class="bi bi-printer-fill me-1"></i> Yazdır
+            </button>
+            <button onclick="exportToExcelLocal()" class="btn btn-sm btn-success shadow-sm">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Excel'e Aktar
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-layers-half me-2"></i>Mükerrer Analiz Sonuçları</h6>
+            <span id="analizDurum" class="badge bg-secondary">Veri Bekleniyor...</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle" id="mukerrerTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-center" style="width: 80px;">Tur No</th>
+                            <th>Güvenlik Personeli</th>
+                            <th>Mükerrer Okutulan Nokta</th>
+                            <th class="text-center">Tekrar</th>
+                            <th>Tarih ve Saatler</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mukerrerBody">
+                        <tr><td colspan="5" class="text-center py-5">Veri taranıyor...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const rawData = sessionStorage.getItem("turData");
+            const body = document.getElementById("mukerrerBody");
+
+            if (!rawData) {
+                body.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-danger">Hata: Veri bulunamadı. Lütfen Tur Analizi sayfasını yenileyin.</td></tr>`;
+                return;
+            }
+
+            const data = JSON.parse(rawData);
+            analizEt(data);
+        });
+
+        function analizEt(data) {
+            const body = document.getElementById("mukerrerBody");
+            const durum = document.getElementById("analizDurum");
+            const sayac = {};
+            let mukerrerVarMi = false;
+
+            data.forEach(item => {
+                const sTipi = item.satirTipi;
+                const tNo = item.turNo;
+                const nAdi = item.kontrolNoktasiAdi ? item.kontrolNoktasiAdi.trim() : "";
+                const pAdi = item.bekciAdi || "---";
+                const zmn = item.devriyeZamani;
+
+                // Özet satırlarını ve geçersiz kayıtları atla
+                if (sTipi === "TOPLAM" || !nAdi || nAdi === "---") return;
+
+                // Tarih bilgisini anahtara ekleyerek gruplama yapıyoruz
+                const dObj = new Date(zmn);
+                const tarihKisa = dObj.toLocaleDateString('tr-TR');
+                const anahtar = tNo + "|||" + nAdi + "|||" + tarihKisa;
+
+                if (!sayac[anahtar]) {
+                    sayac[anahtar] = {
+                        tur: tNo,
+                        personel: pAdi,
+                        nokta: nAdi,
+                        zamanlar: [zmn],
+                        count: 1
+                    };
+                } else {
+                    sayac[anahtar].count++;
+                    sayac[anahtar].zamanlar.push(zmn);
+                }
+            });
+
+            let html = "";
+            Object.values(sayac).sort((a,b) => a.tur - b.tur).forEach(res => {
+                if (res.count > 1) {
+                    mukerrerVarMi = true;
+
+                    // Tarih ve Saat bilgisini büyüten ve ikon ekleyen kısım
+                    const zamanlarHtml = res.zamanlar.map(z => {
+                        const d = new Date(z);
+                        const tarih = d.toLocaleDateString('tr-TR');
+                        const saat = d.getHours().toString().padStart(2, '0') + ":" + d.getMinutes().toString().padStart(2, '0');
+
+                        return `<span class="badge border border-secondary text-dark fw-bold me-2 shadow-sm" style="font-size: 0.95rem; padding: 8px 12px; background-color: #f8f9fa;">
+                                    <i class="bi bi-clock-fill me-1 text-primary"></i>${tarih} ${saat}
+                                </span>`;
+                    }).join("");
+
+                    html += `
+                        <tr>
+                            <td class="text-center fw-bold text-primary" style="font-size: 1.1rem;">${res.tur}</td>
+                            <td style="font-size: 1rem;">${res.personel}</td>
+                            <td class="fw-bold text-danger" style="font-size: 1rem;">
+                                <i class="bi bi-geo-alt-fill me-1"></i>${res.nokta}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-danger p-2" style="min-width:75px; font-size: 0.9rem;">
+                                    ${res.count} Kez
+                                </span>
+                            </td>
+                            <td>${zamanlarHtml}</td>
+                        </tr>`;
+                }
+            });
+
+            if (mukerrerVarMi) {
+                body.innerHTML = html;
+                durum.innerText = "Mükerrer Kayıtlar Bulundu";
+                durum.className = "badge bg-danger";
+            } else {
+                body.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-success fw-bold" style="font-size: 1.1rem;">Mükerrer okutma tespit edilmedi.</td></tr>';
+                durum.innerText = "Temiz";
+                durum.className = "badge bg-success";
+            }
+        }
+
+        function exportToExcelLocal() {
+            const table = document.getElementById("mukerrerTable");
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Mükerrer Okutma" });
+            XLSX.writeFile(wb, "Mukerrer_Okutma_Raporu.xlsx");
+        }
+    </script>
+}

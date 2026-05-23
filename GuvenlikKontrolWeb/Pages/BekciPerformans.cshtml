@@ -1,0 +1,185 @@
+﻿@page
+@model GuvenlikKontrolWeb.Pages.BekciPerformansModel
+@{
+    ViewData["Title"] = "Bekçi Performans Analizi";
+}
+
+<div class="container-fluid animate__animated animate__fadeIn">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold m-0"><i class="bi bi-person-badge me-2"></i>Bekçi Performans Analizi</h2>
+        <div id="tarihGosterge" class="badge bg-light text-dark border p-3 shadow-sm">
+            <i class="bi bi-calendar-check me-2"></i><span id="lblBas">--</span> / <span id="lblBit">--</span>
+        </div>
+    </div>
+
+    <div id="statusInfo" class="alert alert-info shadow-sm border-start border-info border-4">
+        <i class="bi bi-info-circle-fill me-2"></i>Veriler Dashboard ile senkronize ediliyor...
+    </div>
+
+    <div class="row">
+        <div class="col-xl-12 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header py-3 bg-white d-flex align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-bar-chart-line me-2"></i>Başarı Oranı Karşılaştırması (%)</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px; width: 100%;">
+                        <canvas id="perfChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header py-3 bg-dark text-white">
+                    <h6 class="m-0 font-weight-bold"><i class="bi bi-table me-2"></i>Performans Detay Verileri</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4 text-start">Bekçi Adı</th>
+                                    <th>Toplam Tur</th>
+                                    <th class="text-success">Eksiksiz Tur</th>
+                                    <th class="text-warning">Eksikli Tur</th>
+                                    <th class="text-danger">Eksik Nokta</th>
+                                    <th style="width: 300px;">Başarı Oranı</th>
+                                </tr>
+                            </thead>
+                            <tbody id="perfBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const beklenenNoktalar = ["İdari Bina","Shring Mak.","Kalite Kontrol","Eski Kazan Yıkama(Vernik)","Trafo","Pasta Dairesi","Alkid Zemin","Alkid 1.Kat","Alkid 2.Kat","Kazan Dairesi","İnşaat Su Deposu","İnşaat Arka","İnşaat Üretim Platform","İnşaat Ambalaj Depo","Atölye"];
+
+        $(document).ready(function () {
+            veriyiYukle();
+        });
+
+        async function veriyiYukle() {
+            const bas = localStorage.getItem("baslangic");
+            const bit = localStorage.getItem("bitis");
+
+            if (!bas || !bit) return;
+
+            // Tarih göstergesini güncelle
+            $("#lblBas").text(new Date(bas).toLocaleDateString('tr-TR'));
+            $("#lblBit").text(new Date(bit).toLocaleDateString('tr-TR'));
+
+            try {
+                // Dashboard ile aynı API'den veriyi çekiyoruz (Senkronizasyon için şart)
+                const url = `/api/TurAnaliz?baslangic=${encodeURIComponent(bas)}&bitis=${encodeURIComponent(bit)}&_t=${Date.now()}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data && data.length > 0) {
+                    $("#statusInfo").hide();
+                    analiziBaslat(data);
+                } else {
+                    $("#perfBody").html('<tr><td colspan="6" class="p-4 text-danger">Veri bulunamadı.</td></tr>');
+                }
+            } catch (err) {
+                console.error("Yükleme Hatası:", err);
+                $("#statusInfo").text("Veri bağlantı hatası!").show();
+            }
+        }
+
+        function analiziBaslat(data) {
+            const pLog = {};
+
+            data.forEach(row => {
+                const tip = row.satirTipi || row.SatirTipi;
+                if (tip === "DETAY") {
+                    const bekci = row.bekciAdi;
+                    const turNo = row.turNo;
+
+                    if (!pLog[bekci]) pLog[bekci] = { turlar: {}, toplamTur: 0, tamTur: 0, eksikNokta: 0 };
+                    if (!pLog[bekci].turlar[turNo]) pLog[bekci].turlar[turNo] = new Set();
+
+                    pLog[bekci].turlar[turNo].add(row.kontrolNoktasiAdi);
+                }
+            });
+
+            const finalData = [];
+            let rows = "";
+
+            Object.keys(pLog).forEach(bekci => {
+                const p = pLog[bekci];
+                const turNolar = Object.keys(p.turlar);
+                p.toplamTur = turNolar.length;
+
+                turNolar.forEach(no => {
+                    const okunanlar = p.turlar[no];
+                    const eksikler = beklenenNoktalar.filter(n => !okunanlar.has(n));
+
+                    if (eksikler.length === 0) {
+                        p.tamTur++;
+                    } else {
+                        p.eksikNokta += eksikler.length;
+                    }
+                });
+
+                // BAŞARI ORANI: (Tam Tur / Toplam Tur)
+                const oran = p.toplamTur > 0 ? Math.round((p.tamTur / p.toplamTur) * 100) : 0;
+
+                finalData.push({ ad: bekci, oran: oran });
+
+                rows += `
+                    <tr>
+                        <td class="ps-4 text-start fw-bold text-dark">${bekci}</td>
+                        <td class="fw-bold">${p.toplamTur}</td>
+                        <td class="text-success fw-bold">${p.tamTur}</td>
+                        <td class="text-warning fw-bold">${p.toplamTur - p.tamTur}</td>
+                        <td class="text-danger fw-bold">${p.eksikNokta}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="me-2 fw-bold text-primary">%${oran}</span>
+                                <div class="progress w-100 shadow-sm" style="height: 12px;">
+                                    <div class="progress-bar ${oran > 80 ? 'bg-primary' : 'bg-warning'}" style="width: ${oran}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+
+            $("#perfBody").html(rows);
+            grafikCiz(finalData);
+        }
+
+        function grafikCiz(chartData) {
+            const ctx = document.getElementById('perfChart').getContext('2d');
+            let existingChart = Chart.getChart("perfChart");
+            if (existingChart) existingChart.destroy();
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(x => x.ad),
+                    datasets: [{
+                        label: 'Başarı Oranı (%)',
+                        data: chartData.map(x => x.oran),
+                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                        borderColor: '#0d6efd',
+                        borderWidth: 1,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 100 } }
+                }
+            });
+        }
+    </script>
+}

@@ -1,0 +1,367 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "GOM Yönetim Paneli - Final";
+}
+
+<style>
+    body {
+        background-color: #f4f7f6;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    /* Kart Tasarımları ve Büyük Puntolar */
+    .stat-card {
+        transition: transform 0.2s;
+        border: none !important;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .card-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .card-value {
+            font-size: 3.8rem;
+            font-weight: 900;
+            line-height: 1;
+            margin: 10px 0;
+        }
+
+        .stat-card small {
+            font-size: 0.85rem;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
+    .table thead th {
+        background-color: #f8f9fc;
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #4e73df;
+        padding: 15px;
+        border-bottom: 3px solid #e3e6f0;
+    }
+
+    .progress {
+        height: 15px;
+        border-radius: 10px;
+        background-color: #eaecf4;
+    }
+
+    /* [2026-02-25] Müşteri Sayfası Standart Butonları */
+    .btn-action {
+        background: white;
+        border: 2px solid #d1d3e2;
+        color: #4e73df;
+        font-weight: 700;
+        padding: 8px 20px;
+        transition: 0.3s;
+        border-radius: 8px;
+    }
+
+        .btn-action:hover {
+            background: #4e73df;
+            color: white;
+            border-color: #4e73df;
+        }
+
+    .dashboard-header {
+        background: linear-gradient(135deg, #ffffff 0%, #fffde7 100%);
+        border: 1px solid #e3e6f0;
+        border-radius: 20px;
+        padding: 30px;
+    }
+
+    .section-title {
+        border-left: 5px solid #4e73df;
+        padding-left: 15px;
+        margin-bottom: 20px;
+        color: #2c3e50;
+        font-weight: 800;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12 text-center dashboard-header shadow-sm">
+            <h1 class="fw-bold mb-0" style="color: #2c3e50; letter-spacing: -1px;">GÜVENLİK KONTROL NOKTASI DENETİM DASHBOARD</h1>
+            <div class="mt-2 d-flex flex-wrap justify-content-center align-items-center gap-3">
+                <span class="badge bg-primary px-4 py-2 fs-5 rounded-pill shadow-sm">
+                    <i class="bi bi-calendar3 me-2"></i><span id="lblBaslangic">--.--.----</span> - <span id="lblBitis">--.--.----</span>
+                </span>
+                @if (Model.SonGuncelleme.HasValue)
+                {
+                    <span class="badge bg-success px-4 py-2 fs-6 rounded-pill shadow-sm">
+                        <i class="bi bi-check-circle me-2"></i>Son güncelleme: @Model.SonGuncelleme.Value.ToString("dd.MM.yyyy HH:mm")
+                    </span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary px-4 py-2 fs-6 rounded-pill shadow-sm">
+                        <i class="bi bi-clock me-2"></i>Henüz işlenmiş dosya yok
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-3 mb-4">
+        <button onclick="window.print()" class="btn btn-action shadow-sm"><i class="bi bi-printer me-2"></i>PDF / YAZDIR</button>
+        <button onclick="exportToExcel()" class="btn btn-action shadow-sm text-success"><i class="bi bi-file-earmark-excel me-2"></i>EXCEL RAPORU</button>
+        <button class="btn btn-primary shadow-lg px-5 fw-bold rounded-pill" onclick="location.reload()"><i class="bi bi-arrow-clockwise me-2"></i>VERİLERİ TAZELE</button>
+    </div>
+
+    <div class="row g-4 mb-4 text-center">
+        <div class="col-xl col-md-4"><div class="card stat-card border-start border-primary border-5 p-3 h-100"><div class="text-primary card-title">Atılan Tur</div><div class="card-value" id="statAtilan">0</div></div></div>
+        <div class="col-xl col-md-4"><div class="card stat-card border-start border-success border-5 p-3 h-100"><div class="text-success card-title">Eksiksiz Tur</div><div class="card-value" id="statEksiksiz">0</div></div></div>
+        <div class="col-xl col-md-4"><div class="card stat-card border-start border-warning border-5 p-3 h-100"><div class="text-warning card-title">Eksik Tur</div><div class="card-value" id="statEksik">0</div></div></div>
+        <div class="col-xl col-md-6"><div class="card stat-card border-start border-danger border-5 p-3 h-100"><div class="text-danger card-title">Atılmayan Tur</div><div class="card-value text-danger" id="statAtilmayan">0</div><small class="text-muted">(19:00 - 08:00 Arası)</small></div></div>
+        <div class="col-xl col-md-6"><div class="card stat-card border-start border-dark border-5 p-3 h-100"><div class="text-dark card-title">Mükerrer Okutma</div><div class="card-value text-danger" id="statMukerrer">0</div><small class="text-muted">Aynı Nokta Tekrarları</small></div></div>
+    </div>
+
+    <div class="row g-4 mb-5 text-center">
+        <div class="col-xl-4 col-md-6">
+            <div class="card stat-card border-start border-info border-5 p-3 h-100 bg-white">
+                <div class="text-info card-title">Kritik Saat Uyumu</div>
+                <div class="card-value text-info" id="statKritikSaat">%0</div>
+                <small class="text-dark fw-bold">02:00 - 05:00 Arası Tur Başarısı</small>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-6">
+            <div class="card stat-card border-start border-secondary border-5 p-3 h-100 bg-white">
+                <div class="text-secondary card-title">Genel Hız Ortalaması</div>
+                <div class="card-value text-dark" id="statGenelOrtalama">00:00</div>
+                <small class="text-muted">İdeal Tur Süresi: 20-25 Dk.</small>
+            </div>
+        </div>
+        <div class="col-xl-4 col-md-12">
+            <div class="card stat-card border-start border-danger border-5 p-3 h-100 bg-white">
+                <div class="text-danger card-title">Şüpheli Hızlı Turlar</div>
+                <div class="card-value text-danger" id="statSupheliTur">0</div>
+                <small class="text-dark fw-bold">10 Dakikadan Kısa Süren Turlar</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <h4 class="section-title">Günlük Operasyonel Verimlilik</h4>
+            <div class="card shadow-sm border-0 mb-5 rounded-4 overflow-hidden">
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0 text-center">
+                        <thead><tr><th class="ps-4 text-start">Tarih</th><th>Toplam Tur</th><th class="text-primary">Min. Süre</th><th class="text-danger">Max. Süre</th><th>Ortalama Süre</th></tr></thead>
+                        <tbody id="bodyGunluk" class="fs-5 fw-bold"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h4 class="section-title">Personel Bazlı Denetim Detayları</h4>
+            <div class="card shadow-sm border-0 mb-5 rounded-4 overflow-hidden">
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0 text-center">
+                        <thead><tr><th class="ps-4 text-start">Bekçi Adı</th><th>Tur Sayısı</th><th class="text-success">Eksiksiz</th><th class="text-warning">Eksikli</th><th class="text-danger">Eksik Nokta</th><th style="width:350px">Performans Skoru</th></tr></thead>
+                        <tbody id="bodyPerformans" class="fs-6"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-7">
+                    <h4 class="section-title text-warning">Atlanan Nokta Arşivi</h4>
+                    <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden border-top border-warning border-5">
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light"><tr><th class="ps-3">Tur #</th><th>Bekçi</th><th>Atlanan Nokta</th><th class="text-end pe-3">Zaman Damgası</th></tr></thead>
+                                    <tbody id="bodyAtlananDetay"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <h4 class="section-title text-danger">Mükerrer Analiz Kayıtları</h4>
+                    <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden border-top border-danger border-5">
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light"><tr><th class="ps-3">Tur #</th><th>Bekçi</th><th>Nokta</th><th class="text-center">Tespit</th></tr></thead>
+                                    <tbody id="bodyMukerrerDetay"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const beklenenNoktalar = ["İdari Bina","Shring Mak.","Kalite Kontrol","Eski Kazan Yıkama(Vernik)","Trafo","Pasta Dairesi","Alkid Zemin","Alkid 1.Kat","Alkid 2.Kat","Kazan Dairesi","İnşaat Su Deposu","İnşaat Arka","İnşaat Üretim Platform","İnşaat Ambalaj Depo","Atölye"];
+
+        // Server'dan gelen güncel tarih aralığı
+        const serverBas = "@Model.SonBasTarih";
+        const serverBit = "@Model.SonBitTarih";
+
+        if (serverBas && serverBit) {
+            const localBas = localStorage.getItem("baslangic");
+            const localBit = localStorage.getItem("bitis");
+            if (serverBas !== localBas || serverBit !== localBit) {
+                // DB'de farklı veri var — cache'i temizle, yeni tarihleri yaz
+                localStorage.setItem("baslangic", serverBas);
+                localStorage.setItem("bitis",     serverBit);
+                sessionStorage.removeItem("turData");
+                sessionStorage.removeItem("performansData");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            // 1. Önce hafızadaki veriye bak
+            let data = JSON.parse(sessionStorage.getItem("turData") || "[]");
+
+            // 2. Eğer hafıza boşsa API'den çek
+            if (data.length === 0) {
+                const bas = localStorage.getItem("baslangic");
+                const bit = localStorage.getItem("bitis");
+
+                if (bas && bit) {
+                    try {
+                        const res = await fetch(`/api/TurAnaliz?baslangic=${encodeURIComponent(bas)}&bitis=${encodeURIComponent(bit)}&t=${Date.now()}`);
+                        if (res.ok) {
+                            data = await res.json();
+                            sessionStorage.setItem("turData", JSON.stringify(data));
+                        }
+                    } catch (err) {
+                        console.error("Veri çekme hatası:", err);
+                    }
+                }
+            }
+
+            // 3. Veri varsa analizi başlat
+            if (data && data.length > 0) {
+                analizFinal(data);
+            } else {
+                console.warn("Gösterilecek veri bulunamadı.");
+            }
+        });
+
+        function saniyeToHms(s) {
+            if(!s || s < 0 || s === Infinity) return "00:00";
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            return `${h > 0 ? h + ':' : ''}${m < 10 ? '0' + m : m}:${sec < 10 ? '0' + sec : sec}`;
+        }
+
+        function analizFinal(data) {
+            // Mevcut analizFinal kodun aynen kalabilir, ama güvenli olması için
+            // tarihler kısmına küçük bir kontrol ekledim:
+            const tarihler = data
+                .filter(d => d.devriyeZamani)
+                .map(d => new Date(d.devriyeZamani))
+                .filter(d => !isNaN(d))
+                .sort((a,b) => a-b);
+
+            if (tarihler.length > 0) {
+                document.getElementById("lblBaslangic").innerText = tarihler[0].toLocaleDateString('tr-TR');
+                document.getElementById("lblBitis").innerText = tarihler[tarihler.length-1].toLocaleDateString('tr-TR');
+            }
+
+            const turGruplar = {};
+            let mukSay = 0, mList = "", aList = "";
+
+            data.forEach(row => {
+                // SatirTipi büyük-küçük harf duyarlılığı için kontrol
+                const tip = row.satirTipi || row.SatirTipi;
+                if (tip === "DETAY") {
+                    const key = `${row.turNo}|${row.bekciAdi}`;
+                    if (!turGruplar[key]) turGruplar[key] = { n: [], z: [], b: row.bekciAdi, t: row.devriyeZamani, no: row.turNo };
+
+                    if (turGruplar[key].n.includes(row.kontrolNoktasiAdi)) {
+                        mukSay++;
+                        mList += `<tr><td class="ps-3">#${row.turNo}</td><td>${row.bekciAdi}</td><td class="text-danger fw-bold">${row.kontrolNoktasiAdi}</td><td class="text-center"><span class="badge bg-danger">TEKRAR</span></td></tr>`;
+                    }
+                    turGruplar[key].n.push(row.kontrolNoktasiAdi);
+                    turGruplar[key].z.push(new Date(row.devriyeZamani));
+                }
+            });
+
+            // ... (Geri kalan analiz kodların aynı kalıyor)
+            const pLog = {}, gLog = {};
+            let tamT = 0, eksikT = 0, kTurT = 0, kTurB = 0, supheli = 0, tSureler = [];
+
+            Object.values(turGruplar).forEach(tur => {
+                const eksikler = beklenenNoktalar.filter(n => !tur.n.includes(n));
+                const isEksik = eksikler.length > 0;
+                const h = new Date(tur.t).getHours();
+                const saniye = Math.floor((Math.max(...tur.z) - Math.min(...tur.z)) / 1000);
+
+                if(isEksik) {
+                    eksikT++;
+                    eksikler.forEach(en => aList += `<tr><td class="ps-3">#${tur.no}</td><td>${tur.b}</td><td class="text-danger fw-bold">${en}</td><td class="text-end pe-3 text-muted small">${new Date(tur.t).toLocaleString()}</td></tr>`);
+                } else tamT++;
+
+                if(h >= 2 && h <= 5) { kTurT++; if(!isEksik) kTurB++; }
+                if(saniye > 0 && saniye < 600) supheli++;
+                if(saniye > 0) tSureler.push(saniye);
+
+                const gun = new Date(tur.t).toLocaleDateString('tr-TR');
+                if(!gLog[gun]) gLog[gun] = { t:0, s:[] };
+                gLog[gun].t++; if(saniye > 0) gLog[gun].s.push(saniye);
+
+                if(!pLog[tur.b]) pLog[tur.b] = { t:0, tam:0, eksik:0, eNokta:0 };
+                pLog[tur.b].t++; if(isEksik) { pLog[tur.b].eksik++; pLog[tur.b].eNokta += eksikler.length; } else pLog[tur.b].tam++;
+            });
+
+            // Atılmayan Tur (19:00 - 08:00)
+            let atilmayan = 0;
+            if(tarihler.length > 0) {
+                let curr = new Date(tarihler[0]); curr.setMinutes(0,0,0);
+                while(curr <= tarihler[tarihler.length-1]){
+                    const g = curr.getDay(), h = curr.getHours();
+                    if((g===0||g===6) || (h>=19||h<8)){
+                        if(!data.find(x => Math.abs(new Date(x.devriyeZamani)-curr) <= 15*60000)) atilmayan++;
+                    }
+                    curr.setHours(curr.getHours()+1);
+                }
+            }
+
+            // Kartları Bas
+            document.getElementById("statAtilan").innerText = Object.keys(turGruplar).length;
+            document.getElementById("statEksiksiz").innerText = tamT;
+            document.getElementById("statEksik").innerText = eksikT;
+            document.getElementById("statAtilmayan").innerText = atilmayan;
+            document.getElementById("statMukerrer").innerText = mukSay;
+            document.getElementById("statKritikSaat").innerText = kTurT > 0 ? "%" + Math.round((kTurB/kTurT)*100) : "%100";
+            document.getElementById("statGenelOrtalama").innerText = tSureler.length ? saniyeToHms(Math.round(tSureler.reduce((a,b)=>a+b,0)/tSureler.length)) : "00:00";
+            document.getElementById("statSupheliTur").innerText = supheli;
+
+            document.getElementById("bodyAtlananDetay").innerHTML = aList || '<tr><td colspan="4" class="text-center p-3">Atlanan nokta yok.</td></tr>';
+            document.getElementById("bodyMukerrerDetay").innerHTML = mList || '<tr><td colspan="4" class="text-center p-3">Mükerrer kayıt yok.</td></tr>';
+
+            document.getElementById("bodyGunluk").innerHTML = Object.keys(gLog).map(g => {
+                const s = gLog[g].s;
+                const minS = s.length ? Math.min(...s) : 0;
+                const maxS = s.length ? Math.max(...s) : 0;
+                const avgS = s.length ? Math.round(s.reduce((a,b)=>a+b,0)/s.length) : 0;
+                return `<tr><td class="ps-4 text-start">${g}</td><td><span class="badge bg-primary px-3 fs-6">${gLog[g].t}</span></td><td class="text-primary">${saniyeToHms(minS)}</td><td class="text-danger">${saniyeToHms(maxS)}</td><td class="text-dark">${saniyeToHms(avgS)}</td></tr>`;
+            }).join('');
+
+            document.getElementById("bodyPerformans").innerHTML = Object.keys(pLog).map(p => {
+                const s = pLog[p], oran = Math.round((s.tam/s.t)*100);
+                return `<tr><td class="ps-4 text-start fw-bold text-dark fs-5">${p}</td><td>${s.t}</td><td class="text-success fw-bold">${s.tam}</td><td class="text-warning fw-bold">${s.eksik}</td><td class="text-danger fw-bold">${s.eNokta}</td><td><div class="d-flex align-items-center"><span class="me-2 fw-bold text-primary">%${oran}</span><div class="progress w-100 shadow-sm"><div class="progress-bar bg-primary" style="width:${oran}%"></div></div></div></td></tr>`;
+            }).join('');
+        }
+    </script>
+}

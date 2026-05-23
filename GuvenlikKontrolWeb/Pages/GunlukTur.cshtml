@@ -1,0 +1,192 @@
+﻿@page
+@{
+    ViewData["Title"] = "Günlük Tur Analizi";
+}
+
+<div class="container-fluid animate__animated animate__fadeIn">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold m-0"><i class="bi bi-calendar-check me-2"></i>Günlük Tur Raporu</h2>
+        <div id="tarihAralik" class="badge bg-light text-dark border p-2 shadow-sm"></div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-dark text-white py-3">
+            <h6 class="m-0 font-weight-bold"><i class="bi bi-table me-2"></i>Günlük Operasyonel İstatistikler</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Operasyon Tarihi</th>
+                            <th class="text-center">Toplam Tur</th>
+                            <th class="text-center text-info">Min. Süre</th>
+                            <th class="text-center text-danger">Max. Süre</th>
+                            <th class="text-center text-primary">Ortalama Süre</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gunlukTurBody">
+                        <tr><td colspan="5" class="text-center p-5">Veriler hazırlanıyor...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-bar-chart-fill me-2"></i>Günlük Toplam Tur Sayısı</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px;">
+                        <canvas id="turChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 font-weight-bold text-success"><i class="bi bi-graph-up me-2"></i>Süre Trendi (Dakika)</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px;">
+                        <canvas id="sureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Saniyeyi HH:MM:SS formatına çevirir
+        function saniyeToHHMMSS(totalSeconds) {
+            if (!totalSeconds || totalSeconds < 0) return "00:00:00";
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = Math.floor(totalSeconds % 60);
+            return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+        }
+
+        // Grafikler için saniyeyi tam dakikaya çevirir
+        const toMinutes = (s) => Math.round(s / 60);
+
+        function loadGunlukTur() {
+            const rawData = sessionStorage.getItem("turData");
+            if (!rawData) {
+                document.getElementById("gunlukTurBody").innerHTML = `<tr><td colspan="5" class="text-center p-4 text-warning">Lütfen önce ana menüden verileri güncelleyin.</td></tr>`;
+                return;
+            }
+
+            const data = JSON.parse(rawData);
+
+            // Sadece TOPLAM satırlarını ve geçerli süresi olanları al
+            const toplamSatirlar = data.filter(x =>
+                (x.satirTipi === "TOPLAM" || x.SatirTipi === "TOPLAM") &&
+                (x.turToplamSn || x.TurToplamSn) > 0
+            );
+
+            const gunluk = {};
+
+            toplamSatirlar.forEach(row => {
+                const tarihHam = row.operasyonGunu || row.OperasyonGunu;
+                const tarih = new Date(tarihHam).toLocaleDateString('tr-TR');
+                const sure = row.turToplamSn || row.TurToplamSn;
+
+                if (!gunluk[tarih]) {
+                    gunluk[tarih] = { turSayisi: 0, sureler: [] };
+                }
+                gunluk[tarih].turSayisi++;
+                gunluk[tarih].sureler.push(sure);
+            });
+
+            const labels = Object.keys(gunluk).sort((a, b) => {
+                return new Date(a.split('.').reverse().join('-')) - new Date(b.split('.').reverse().join('-'));
+            });
+
+            const tableBody = document.getElementById("gunlukTurBody");
+            tableBody.innerHTML = "";
+
+            const chartData = { turSayilari: [], mins: [], maxs: [], orts: [] };
+
+            labels.forEach(tarih => {
+                const val = gunluk[tarih];
+                const min = Math.min(...val.sureler);
+                const max = Math.max(...val.sureler);
+                const ort = val.sureler.reduce((a, b) => a + b, 0) / val.sureler.length;
+
+                tableBody.innerHTML += `
+                    <tr>
+                        <td class="ps-4 fw-bold">${tarih}</td>
+                        <td class="text-center"><span class="badge bg-primary">${val.turSayisi}</span></td>
+                        <td class="text-center text-info">${saniyeToHHMMSS(min)}</td>
+                        <td class="text-center text-danger">${saniyeToHHMMSS(max)}</td>
+                        <td class="text-center fw-bold text-dark">${saniyeToHHMMSS(Math.round(ort))}</td>
+                    </tr>
+                `;
+
+                chartData.turSayilari.push(val.turSayisi);
+                chartData.mins.push(toMinutes(min));
+                chartData.maxs.push(toMinutes(max));
+                chartData.orts.push(toMinutes(ort));
+            });
+
+            renderCharts(labels, chartData);
+        }
+
+        function renderCharts(labels, chartData) {
+            // 1. TUR SAYISI GRAFİĞİ
+            new Chart(document.getElementById("turChart"), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Tur Sayısı',
+                        data: chartData.turSayilari,
+                        backgroundColor: '#4e73df',
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { color: '#fff', font: { weight: 'bold' } }
+                    }
+                }
+            });
+
+            // 2. SÜRE ANALİZ GRAFİĞİ (Line Chart)
+            new Chart(document.getElementById("sureChart"), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Min (Dk)', data: chartData.mins, borderColor: '#36b9cc', tension: 0.3 },
+                        { label: 'Max (Dk)', data: chartData.maxs, borderColor: '#e74c3c', tension: 0.3 },
+                        { label: 'Ort (Dk)', data: chartData.orts, borderColor: '#f6c23e', borderWidth: 4, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        datalabels: { display: false } // Çizgi grafikte kalabalık yapmasın
+                    },
+                    scales: {
+                        y: { title: { display: true, text: 'Dakika' } }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", loadGunlukTur);
+    </script>
+}
